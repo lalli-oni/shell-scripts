@@ -1,0 +1,47 @@
+# Allows the user to select a docker service to stop, remove, rebuild and start regardless of state
+# Requires gum https://github.com/charmbracelet/gum#installation
+fresh-container() {
+    #!/bin/sh
+
+    default_path="docker-compose.development.yml"
+
+    # if ! type "default_path" > /dev/null; then
+    #     echo "Error. docker-compose not found"
+    #     return
+    # fi
+
+    # while getopts f: flag
+    # do
+    #     case "${flag}" in
+    #         f) compose_path=${OPTARG};;
+    #     esac
+    # done
+
+    # if (( !$compose_path )) then
+    #     # Assumes you are in `backend_v2` folder
+    #     compose_path=$default_path
+    #     echo $compose_path
+    # fi
+
+    CONTAINER=$(docker-compose -f $default_path ps --services | gum filter --placeholder "Pick service...")
+    if [ -z "$CONTAINER" ]; then
+        echo "No service selected. Exiting..."
+        return
+    fi
+
+    docker-compose -f $default_path stop $CONTAINER
+    docker-compose -f $default_path rm --force $CONTAINER
+    gum spin --spinner monkey --title "Building image" -- docker-compose -f $default_path build --quiet $CONTAINER
+    docker-compose -f $default_path up -d $CONTAINER
+
+    SECONDS=0
+    until [ "$(docker-compose -f $default_path ps --services --filter "status=running") | grep $CONTAINER" ]; do
+        if (( SECONDS > 60 )) then
+            echo "Timeout. Exiting..."
+            exit 1
+        fi
+        echo "Waiting for $CONTAINER"
+        sleep 5
+    done
+    gum confirm "Open logs for $CONTAINER" && docker-compose -f $default_path logs -f $CONTAINER
+}

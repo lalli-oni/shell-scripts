@@ -18,3 +18,4 @@ To improve Developer Experience by seamlessly integrating project management, so
 - zsh (the shell)
 - gum (shell tool)
 - GitLab CLI `glab` (shell tool)
+- GitHub CLI `gh` (shell tool)
