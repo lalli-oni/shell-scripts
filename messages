@@ -1,0 +1,21 @@
+success-message() {
+    #!/bin/sh
+
+    VIEWPORT_WIDTH=$(tput cols)
+    let PADDED_WIDTH=$VIEWPORT_WIDTH-7
+
+    echo "$1" | gum style \
+        --foreground "#00ff15" --border-foreground "#004d06" --border double \
+        --align center --width $PADDED_WIDTH --margin "1 2" --padding "2 4"
+}
+
+error-message() {
+    #!/bin/sh
+
+    VIEWPORT_WIDTH=$(tput cols)
+    let PADDED_WIDTH=$VIEWPORT_WIDTH-7
+
+    echo "$1" | gum style \
+        --foreground "#fc0324" --border-foreground "#54000b" --border double \
+        --align center --width $PADDED_WIDTH --margin "1 2" --padding "2 4"
+}
