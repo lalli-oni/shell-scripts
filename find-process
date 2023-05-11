@@ -1,0 +1,16 @@
+# Function to help find process
+find-process() {
+    #!/bin/sh
+
+    # echo $1
+    if [ -z "$1" ]; then
+        error-message "Missing process name"
+    fi
+
+    TEMP_FILE="ps-aux.csv"
+    rm -f $TEMP_FILE
+
+    ps -eo user,pid,command | grep $1 >> $TEMP_FILE
+
+    gum table < $TEMP_FILE |cut -d ',' -f 1
+}
