@@ -1,0 +1,105 @@
+# List Open MRs in GitLab you're working on and assigned as reviewer
+ygg() {
+    #!/bin/sh
+    local MY_INITIALS="ldj"
+    local REPOS="inpay/customer_app"
+    # Get local branches
+    local BRANCHES=$(git branch --list)
+
+    local MR_LIST_TABLE="Gitlab,JIRA,Draft?,Roles,Title"
+    local SAVEIFS=$IFS
+    IFS=$'\n'
+    declare -a MR_IDS=($(glab mr list --repo "$REPOS" --assignee=@me --reviewer=@me | grep -o "^\![[:digit:]]*" | cut -c 2-))
+    IFS=$SAVEIFS
+
+    # Iterate on ALL_MERGE_REQUEST_IDS
+    for line in $MR_IDS;
+        do
+            # echo "MR"$line
+            MR_DETAILS=$(gum spin --show-output --title "Loading MR #"$line -- glab mr view --repo "$REPOS" $line)
+
+            ASSIGNEE=$(echo "$MR_DETAILS" | grep "^\([Aa]ssignees:\)\(.*\)\($MY_INITIALS\)" | cut -c 12-)
+            if [ ! -z "$ASSIGNEE" ]; then
+                # echo "assigned"$ASSIGNEE
+                WATCHING_MR="yes"
+                ASSIGNEE="👨🏻‍💻"
+            fi
+
+            REVIEWER=$(echo "$MR_DETAILS" | grep "^\([Rr]eviewers:\)\(.*\)\($MY_INITIALS\)" | cut -c 12-)
+            if [ ! -z "$REVIEWER" ]; then
+                # echo "reviewer"$REVIEWER
+                WATCHING_MR="yes"
+                REVIEWER="🔍"
+            fi
+
+            # TODO: Get MR pipeline status
+            # NOTE: IMPORTANT! The output of `glab` is different.
+            #   Fx. when running in script it doesn't include pipeline status
+
+            MR_TITLE=$(echo "$MR_DETAILS" | grep "\([Tt]itle:[[:space:]]\)\(.*\)" | cut -c 8-)
+            # echo $MR_TITLE
+            if echo "$MR_TITLE" | grep -q "Draft: "; then
+                MR_TITLE=$(echo $MR_TITLE | cut -c 8-)
+                IS_DRAFT="✏️"
+            else
+                IS_DRAFT="📣"
+            fi
+
+            JIRA_ID=$(echo $MR_TITLE | grep -o "^\(NO_ISSUE\|[A-z]\+-[0-9]\+\)")
+            # echo $JIRA_ID
+            PREFIX_LENGTH=$((${#JIRA_ID}+1))
+            # echo "Prefix length: "$PREFIX_LENGTH
+            # TODO: shave off ([: ]*) from the start of the MR_TITLE
+            # Remove quotation marks (") from MR_TITLE
+            MR_TITLE=$(print -r -- ${MR_TITLE:gs/\"/})
+            MR_TITLE=$(echo $MR_TITLE | cut -c $PREFIX_LENGTH-)
+
+            # MR_API_DETAILS=$(glab api /projects/:id/merge_requests/$line)
+            LAST_MODIFIED=$(glab api /projects/:id/merge_requests/$line | jq '.updated_at')
+            # echo $line
+            echo "last updated:"$LAST_MODIFIED
+
+            MR_LIST_TABLE="$MR_LIST_TABLE\n$line,$JIRA_ID,$IS_DRAFT,$ASSIGNEE$REVIEWER,$MR_TITLE"
+        done
+
+    # echo "$MR_LIST_TABLE"
+    MR_LIST_PATH="mr_list.csv"
+    rm -f $MR_LIST_PATH
+    echo $MR_LIST_TABLE > $MR_LIST_PATH
+    VIEWPORT_WIDTH=$(tput cols)
+    # echo "viewport width:"$VIEWPORT_WIDTH
+    # TODO: "floor" (learn correct term) the column width
+    let DYNAMIC_SPACE=$VIEWPORT_WIDTH-6-8-6-10-10-20-20
+    # echo "dynamic space:"$DYNAMIC_SPACE
+    SELECTED_MR=$(gum table --widths 6,8,6,10,$DYNAMIC_SPACE < $MR_LIST_PATH | cut -d ',' -f 1)
+    # echo $MR_LIST_TABLE > gum table
+
+    if [ -z "$SELECTED_MR" ]; then
+        error-message "User aborted selection"
+        rm -f $MR_LIST_PATH
+        return
+    fi
+
+    if [ "$SELECTED_MR" = "invalid data provided" ]; then
+        error-message "Error loading data into table"
+        echo "$MR_LIST_TABLE"
+        rm -f $MR_LIST_PATH
+        return
+    fi
+
+    # Select action
+    # TODO: Additional actions: Open GitLab page
+    ACTION=$(gum choose "Open GitLab MR" "Show MR details in terminal" "Open JIRA ticket")
+    success-message $SELECTED_MR" => "$ACTION
+    if [ "$ACTION" = "Show MR details in terminal" ]; then
+        glab mr view --repo "$REPOS" $SELECTED_MR
+    elif [ "$ACTION" = "Open GitLab MR" ]; then
+        open https://git.inpay.com/inpay/customer_app/-/merge_requests/$SELECTED_MR
+    elif [ "$ACTION" = "Open JIRA ticket" ]; then
+        # TODO: update $JIRA_ID based on $SELECTED_MR
+        open https://inpay.atlassian.net/browse/$JIRA_ID
+    else
+        echo "Unrecognised action"$ACTION
+    fi
+    rm -f $MR_LIST_PATH
+}
