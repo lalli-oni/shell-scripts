@@ -1,0 +1,88 @@
+
+# Rebases master branch onto feature branch
+rebase-feature-branch() {
+    #!/bin/sh
+
+    # Color palette
+    accent_color="#ff7301"
+    accent_darker_color="#ff730191"
+    black_color="#00000"
+
+    # Set default gum colors
+    # TODO: Set 'gum style' colors
+    export GUM_CONFIRM_PROMPT_FOREGROUND=$accent_color
+    export GUM_CONFIRM_SELECTED_FOREGROUND=$black
+    export GUM_CONFIRM_SELECTED_BACKGROUND=$accent_color
+
+    # TODO: Fetch branches
+    # TODO: Show updates (if there are). Say it was up to date (if it was)
+    current_branch=$(git rev-parse --abbrev-ref HEAD)
+    target_branch=$current_branch
+    release_branch=$current_branch
+    if [ $current_branch = 'master' ] || [ $current_branch = 'main' ]; then
+        release_branch=$current_branch
+        # current_branch=$(git branch --list | gum filter --placeholder "Pick branch")
+        echo -e "$(echo "branch name,Commit hash id,Commit description,Last commit"; git for-each-ref --sort=-committerdate refs/heads/ --format='%(refname:short),%(objectname:short),%(authorname),%(committerdate:relative)')" > branch_list.csv
+        target_branch=$(gum table < branch_list.csv | cut -d ',' -f 1)
+        rm -rf branch_list.csv
+        echo "git checkout $target_branch"
+        git checkout $target_branch
+        $current_branch = $target_branch
+    else
+        target_branch=$current_branch
+        release_branch=$(git branch --list | grep -e "master" -e "main" | xargs)
+    fi
+    print 'target:'$target_branch
+    print 'release:'$release_branch
+    last_reflog_update=$(git reflog show --date=iso --pretty='%cd' -n 1 $current_branch)
+    gum style \
+        --foreground $accent_color --border-foreground $accent_darker_color --border double \
+        --align center --width 50 --margin "1 2" --padding "2 4" \
+        'Starting rebase!' $target_branch 'On top of '$release_branch
+
+    number_of_diverged_commits=$(git rev-list --count HEAD ^$release_branch)
+    diverging_commit_long_SHA=$(git rev-parse HEAD~$number_of_diverged_commits)
+    diverging_commit_description=$(git log)
+
+    squash=false
+    gum confirm --affirmative="Squash!" --negative="Nahh, thanks" "Squash "$number_of_diverged_commits" commits?" && squash=true
+
+    # TODO: print out the commit to be picked
+    # OR!!! how about showing the commits that are going to be applied on feature branch?
+    if [ $squash = true ]; then
+        # TODO: generate the squash message. non-interactive rebase?
+        # TODO: still need the commit SHA of the commit to be picked?
+        # Maybe we can reword the commit we are picking? So it becomes the squash
+        echo "git merge --squash HEAD~$number_of_diverged_commits"
+        squash_message=$(git merge --squash HEAD~$number_of_diverged_commits)
+        echo "squash message: $squash_message"
+        # if [ test $squash_message ]
+        # Squashing N commits to prepare for rebasing on $release_branch
+    fi
+
+    # Push squashed branch
+    # print $(git push --force $feature_branch)
+    # echo "git rebase -i origin/$release_branch $feature_branch"
+    rebase_message=$(git rebase -i origin/$release_branch $feature_branch)
+    echo $rebase_message
+    # TODO: abort if we have rebase in progress
+    if [ test $rebase_message = "fatal" ]; then
+        print "Rebase in progress. Aborting..."
+        return 0
+    fi
+    print $rebase_message
+
+    timeout=3
+    conflicting_commits=2
+    # Merge conflic phase
+    until [[ $conflicting_commits = '0' ]]; do
+        gum spin --spinner monkey --title 'Please resolve merge conflicts...' -- sleep 3
+        conflicting_commits=$(expr $conflicting_commits - 1)
+        print $conflicting_commits
+    done
+    # git rebase --abort
+    # Are there conflicts?
+    # Print conflict files (make sure they are clickable in some terminals)
+    # Iterating on file conflicts. Prompt pick yours/theirs?
+    # Polling, show updated conflict status?
+}
