@@ -1,6 +1,9 @@
+
 # List Open MRs in GitLab you're working on and assigned as reviewer
 ygg() {
     #!/bin/sh
+    source ~/.oh-my-zsh/functions/messages
+
     local MY_INITIALS="ldj"
     local REPOS="inpay/customer_app"
     # Get local branches
@@ -37,7 +40,6 @@ ygg() {
             #   Fx. when running in script it doesn't include pipeline status
 
             MR_TITLE=$(echo "$MR_DETAILS" | grep "\([Tt]itle:[[:space:]]\)\(.*\)" | cut -c 8-)
-            # echo $MR_TITLE
             if echo "$MR_TITLE" | grep -q "Draft: "; then
                 MR_TITLE=$(echo $MR_TITLE | cut -c 8-)
                 IS_DRAFT="✏️"
@@ -99,7 +101,7 @@ ygg() {
         # TODO: update $JIRA_ID based on $SELECTED_MR
         open https://inpay.atlassian.net/browse/$JIRA_ID
     else
-        echo "Unrecognised action"$ACTION
+        error-message "Unrecognised action"$ACTION
     fi
     rm -f $MR_LIST_PATH
 }
